@@ -1,0 +1,77 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Django migrations
+*/migrations/
+!*/migrations/__init__.py
+
+# SQLite database and other DB files
+*.sqlite3
+*.db
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Virtual environment
+venv/
+env/
+ENV/
+.venv/
+
+# VSCode and IDE settings
+.vscode/
+.idea/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Static files (optional, if collected)
+staticfiles/
+static/
+
+# Media files (optional, if not tracked)
+media/
+
+# Coverage reports
+htmlcov/
+.coverage
+.tox/
+
+# Pytest
+.pytest_cache/
+
+# MyPy
+.mypy_cache/
+
+# Celery beat schedule file
+celerybeat-schedule
+
+# pip cache
+pip-wheel-metadata/
+
+# Compiled translation files
+*.mo
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Security reports
+bandit-report.json
+safety-report.json
+
+# CI/CD artifacts
+.github/workflows/test-results.xml

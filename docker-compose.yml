@@ -1,0 +1,41 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: face_ai_backend
+    command: gunicorn project.wsgi:application --bind 0.0.0.0:14020
+    ports:
+      - "14020:14020"
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app 
+    environment:
+      - DJANGO_SETTINGS_MODULE=project.settings
+
+  worker:
+    build:
+      context: . 
+      dockerfile: Dockerfile
+    container_name: celery_worker
+    command: celery -A project worker --loglevel=info
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app 
+    environment:
+      - DJANGO_SETTINGS_MODULE=project.settings
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6305:6305"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
