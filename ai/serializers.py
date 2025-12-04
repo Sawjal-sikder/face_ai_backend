@@ -32,13 +32,15 @@ class ImageAnalysisResultSerializer(serializers.ModelSerializer):
     
     def to_representation(self, instance):
         representation = super().to_representation(instance)
-        avg = (
-            instance.ratings.skin_quality +
-            instance.ratings.jawline_definition +
-            instance.ratings.cheekbone_structure +
-            instance.ratings.eye_area +
-            instance.ratings.facial_proportions
-        ) / 5
-        representation['average_rating'] = format(avg, ".2f")
+        # Ensure all rating fields are numeric before calculation
+        ratings = [
+            float(instance.ratings.skin_quality or 0),
+            float(instance.ratings.jawline_definition or 0),
+            float(instance.ratings.cheekbone_structure or 0),
+            float(instance.ratings.eye_area or 0),
+            float(instance.ratings.facial_proportions or 0)
+        ]
+        avg = sum(ratings) / 5
+        representation['average_rating'] = round(avg, 2)  # Keep as float, not string
         representation['user'] = instance.user.full_name if instance.user else None
         return representation
