@@ -6,6 +6,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from .userpermissions import IsSuperUser
+from payment.models import analysesBalance
 
 from .serializers import *
 
@@ -74,7 +75,13 @@ class UserRegistrationVerifyCodeView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
 
         # Save activates the user and marks OTP as used
-        serializer.save()
+        user = serializer.save()
+        
+        # Add 1 free analysis to new user's balance
+        analysesBalance.objects.get_or_create(
+            user=user,
+            defaults={'balance': 1}
+        )
 
         return Response({"message": "Account activated successfully."}, status=status.HTTP_200_OK)
 
