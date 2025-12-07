@@ -169,8 +169,8 @@ class PlanUpdateView(generics.RetrieveUpdateAPIView):
 class CreateSubscriptionView(APIView):
     def post(self, request):
         plan_id = request.data.get("plan_id")  # Pass Plan PK from frontend
-        success_url = request.data.get("success_url", f"{request.build_absolute_uri('/api/payment/payment-success/')}")
-        cancel_url = request.data.get("cancel_url", f"{request.build_absolute_uri('/api/payment/payment-cancel/')}")
+        success_url = os.getenv("BASE_URL_FRONTEND", "http://localhost:3000/")
+        cancel_url = os.getenv("BASE_URL_FRONTEND", "http://localhost:3000/")
         
         try:
             plan = Plan.objects.get(pk=plan_id, active=True)
