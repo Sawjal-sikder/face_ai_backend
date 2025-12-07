@@ -1,80 +1,78 @@
 # Core Django
-Django==5.2.5
-asgiref==3.9.1
-sqlparse==0.5.3
-tzdata==2025.2
+Django
+asgiref
+sqlparse
+tzdata
 
 # Django REST Framework
-djangorestframework==3.16.1
-django-cors-headers==4.7.0
-django-filter==25.1
+djangorestframework
+django-cors-headers
+django-filter
 
 # Authentication & Authorization
-dj-rest-auth==7.0.1
-django-allauth==65.10.0
-djangorestframework_simplejwt==5.5.1
-PyJWT==2.10.1
+dj-rest-auth
+django-allauth
+djangorestframework_simplejwt
+PyJWT
 
 # Google OAuth
-google-auth==2.34.0
-google-auth-oauthlib==1.2.1
-google-auth-httplib2==0.2.0
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
 
 # Translation Support
-django-parler==2.3
-django-parler-rest==2.2
-
+django-parler
+django-parler-rest
 # Celery (Task Queue)
-celery==5.5.3
-django-celery-beat==2.8.1
-redis==6.4.0
-kombu==5.5.4
-amqp==5.3.1
-billiard==4.2.1
-click==8.2.1
-vine==5.1.0
-
+celery
+django-celery-beat
+redis
+kombu
+amqp
+billiard
+click
+vine
 # Payment Processing
-stripe==12.5.1
+stripe
 
 # AI Functionality
-openai==1.107.3
-langdetect==1.0.9
+openai
+langdetect
 
 # HTTP Clients & Networking
-requests==2.32.4
-httpx==0.28.1
-httpcore==1.0.9
-h11==0.16.0
-urllib3==2.5.0
-certifi==2025.8.3
-charset-normalizer==3.4.3
-idna==3.10
-anyio==4.10.0
+requests
+httpx
+httpcore
+h11
+urllib3
+certifi
+charset-normalizer
+idna
+anyio
 
 # Image Processing
-pillow==11.3.0
+pillow
 
 # Database
-psycopg2-binary==2.9.9
+psycopg2-binary
 
 # Web Server
-gunicorn==23.0.0
+gunicorn
 
 # Data Validation
-pydantic==2.11.9
-pydantic_core==2.33.2
-annotated-types==0.7.0
-jiter==0.11.0
+pydantic
+pydantic_core
+annotated-types
+jiter
 
 # Cryptography
-cryptography==45.0.6
-cffi==1.17.1
-pycparser==2.22
+cryptography
+cffi
+pycparser
 
 # Utilities
-python-dotenv==1.1.1
-python-dateutil==2.9.0.post0
-six==1.17.0
-packaging==25.0
-typing_extensions==4.15.0
+python-dotenv
+python-dateutil
+six
+packaging
+typing_extensions
