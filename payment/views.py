@@ -531,14 +531,14 @@ def stripe_webhook(request):
     endpoint_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
     
     # Enhanced logging for debugging
-    # logger.info("=" * 80)
-    # logger.info("🔔 STRIPE WEBHOOK RECEIVED")
-    # logger.info(f"📝 Request method: {request.method}")
-    # logger.info(f"📝 Request path: {request.path}")
-    # logger.info(f"📝 Content-Type: {request.META.get('CONTENT_TYPE', 'N/A')}")
-    # logger.info(f"🔑 Signature present: {sig_header is not None}")
-    # logger.info(f"🔑 Webhook secret configured: {endpoint_secret is not None}")
-    # logger.info(f"📦 Payload size: {len(payload)} bytes")
+    logger.info("=" * 80)
+    logger.info("🔔 STRIPE WEBHOOK RECEIVED")
+    logger.info(f"📝 Request method: {request.method}")
+    logger.info(f"📝 Request path: {request.path}")
+    logger.info(f"📝 Content-Type: {request.META.get('CONTENT_TYPE', 'N/A')}")
+    logger.info(f"🔑 Signature present: {sig_header is not None}")
+    logger.info(f"🔑 Webhook secret configured: {endpoint_secret is not None}")
+    logger.info(f"📦 Payload size: {len(payload)} bytes")
     
     if not sig_header:
         logger.error("❌ Missing Stripe signature header")
