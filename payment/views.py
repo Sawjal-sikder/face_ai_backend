@@ -165,36 +165,36 @@ class CreateSubscriptionView(APIView):
         except Plan.DoesNotExist:
             return Response({"error": "Plan not found"}, status=404)
 
-        # Check user's analysis balance and unlimited status
-        balance_obj = None
-        try:
-            balance_obj = analysesBalance.objects.get(user=request.user)
-            has_balance = balance_obj.balance > 0
-            is_unlimited = balance_obj.balance >= 999999
-        except analysesBalance.DoesNotExist:
+        # Check for existing subscription first
+        existing_subscription = Subscription.get_user_active_subscription(request.user)
+        
+        if existing_subscription:
+            # Check user's analysis balance and unlimited status
+            balance_obj = None
             has_balance = False
             is_unlimited = False
-        
-        # Only allow purchase if balance is 0 and is_unlimited is false
-        if has_balance or is_unlimited:
-            existing_subscription = Subscription.get_user_active_subscription(request.user)
             
-            error_data = {
-                "error": "You already have an active subscription",
-                "message": "You cannot create a new subscription while you have an active plan",
-                "balance": balance_obj.balance if balance_obj else 0,
-                "is_unlimited": is_unlimited
-            }
+            try:
+                balance_obj = analysesBalance.objects.get(user=request.user)
+                has_balance = balance_obj.balance > 0
+                is_unlimited = balance_obj.balance >= 999999
+            except analysesBalance.DoesNotExist:
+                pass
             
-            if existing_subscription:
-                error_data.update({
+            # Only allow purchase if balance is 0 and is_unlimited is false
+            if has_balance or is_unlimited:
+                error_data = {
+                    "error": "You already have an active subscription",
+                    "message": "You cannot create a new subscription while you have an active plan",
+                    "balance": balance_obj.balance if balance_obj else 0,
+                    "is_unlimited": is_unlimited,
                     "current_plan": existing_subscription.plan.name if existing_subscription.plan else "Unknown",
                     "status": existing_subscription.status,
                     "subscription_id": existing_subscription.id,
                     "current_period_end": existing_subscription.current_period_end
-                })
-            
-            return Response(error_data, status=400)
+                }
+                
+                return Response(error_data, status=400)
 
         try:
             # Create or get Stripe customer
@@ -530,40 +530,20 @@ def stripe_webhook(request):
     sig_header = request.META.get("HTTP_STRIPE_SIGNATURE")
     endpoint_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
     
-    # Enhanced logging for debugging
-    logger.info("=" * 80)
-    logger.info("🔔 STRIPE WEBHOOK RECEIVED")
-    logger.info(f"📝 Request method: {request.method}")
-    logger.info(f"📝 Request path: {request.path}")
-    logger.info(f"📝 Content-Type: {request.META.get('CONTENT_TYPE', 'N/A')}")
-    logger.info(f"🔑 Signature present: {sig_header is not None}")
-    logger.info(f"🔑 Webhook secret configured: {endpoint_secret is not None}")
-    logger.info(f"📦 Payload size: {len(payload)} bytes")
     
     if not sig_header:
-        logger.error("❌ Missing Stripe signature header")
         return HttpResponse("Missing signature", status=400)
     
     if not endpoint_secret:
-        logger.error("❌ Webhook secret not configured in environment")
         return HttpResponse("Webhook secret not configured", status=500)
 
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
-        logger.info(f"✅ Webhook event constructed successfully: {event.get('type', 'unknown')}")
-        logger.info(f"📋 Event ID: {event.get('id', 'N/A')}")
     except ValueError as e:
-        logger.error(f"❌ Invalid payload: {str(e)}")
-        logger.error(f"Payload preview: {payload[:200]}")
         return HttpResponse("Invalid payload", status=400)
     except stripe.error.SignatureVerificationError as e:
-        logger.error(f"❌ Invalid signature: {str(e)}")
-        logger.error(f"Expected signature header: {sig_header}")
         return HttpResponse("Invalid signature", status=400)
     except Exception as e:
-        logger.error(f"❌ Webhook construction error: {str(e)}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
         return HttpResponse("Webhook error", status=400)
 
     try:
@@ -574,7 +554,6 @@ def stripe_webhook(request):
             data=event["data"]["object"],
         )
         
-        logger.info(f"💾 Webhook event saved to database: {event['id']} (DB ID: {webhook_event.id})")
     except Exception as e:
         logger.error(f"⚠️ Failed to save webhook event: {str(e)}")
         # Don't return error here, continue processing
@@ -582,9 +561,6 @@ def stripe_webhook(request):
     obj = event["data"]["object"]
     event_type = event["type"]
     
-    logger.info(f"🔍 Processing webhook event: {event_type}")
-    logger.info(f"📊 Object ID: {obj.get('id', 'N/A')}")
-    logger.info(f"📊 Object type: {obj.get('object', 'N/A')}")
     
     # Determine if this is a payment-related event
     payment_events = [
@@ -605,37 +581,25 @@ def stripe_webhook(request):
     ]
     
     if event_type in payment_events:
-        logger.info(f"✅ PAYMENT EVENT DETECTED: {event_type}")
-        logger.info(f"💳 Payment Status: {obj.get('payment_status', 'N/A')}")
-        print(f"✅ PAYMENT EVENT: {event_type} - Payment Status: {obj.get('payment_status', 'N/A')}")
+        print(f"✅ PAYMENT EVENT:  - Payment Status: {obj.get('payment_status', 'N/A')}")
     elif event_type in subscription_events:
-        logger.info(f"📋 SUBSCRIPTION EVENT DETECTED: {event_type}")
-        logger.info(f"📊 Status: {obj.get('status', 'N/A')}")
-        print(f"📋 SUBSCRIPTION EVENT: {event_type} - Status: {obj.get('status', 'N/A')}")
+        print(f"📋 SUBSCRIPTION EVENT:  - Status: {obj.get('status', 'N/A')}")
     else:
-        logger.info(f"ℹ️ OTHER EVENT: {event_type}")
-        print(f"ℹ️ OTHER EVENT: {event_type} - Not a direct payment event")
+        print(f"ℹ️ OTHER EVENT:  - Not a direct payment event")
 
     try:
         
         if event_type == "checkout.session.completed":
-            logger.info("🛒 Processing checkout.session.completed")
             
             # Get user from metadata
             metadata = obj.get("metadata", {})
             user_id = metadata.get("user_id")
             plan_id = metadata.get("plan_id")
             
-            logger.info(f"👤 Checkout metadata - user_id: {user_id}, plan_id: {plan_id}")
-            logger.info(f"💳 Payment status: {obj.get('payment_status', 'N/A')}")
-            logger.info(f"📋 Subscription ID: {obj.get('subscription', 'N/A')}")
-            
             if user_id and obj.get("subscription"):
                 try:
                     # Retrieve the subscription from Stripe
                     stripe_subscription = stripe.Subscription.retrieve(obj["subscription"])
-                    logger.info(f"✅ Retrieved Stripe subscription: {stripe_subscription.id}")
-                    logger.info(f"📊 Subscription status: {stripe_subscription.get('status', 'N/A')}")
                     
                     # Update the pending subscription in our database
                     subscription = Subscription.objects.filter(
@@ -649,7 +613,6 @@ def stripe_webhook(request):
                             user_id=user_id,
                             stripe_subscription_id__isnull=True
                         ).first()
-                        logger.info(f"ℹ️ No pending subscription, found subscription without Stripe ID: {subscription}")
                     
                     if subscription:
                         # Safely handle timestamps
@@ -662,7 +625,6 @@ def stripe_webhook(request):
                             trial_end = make_aware(
                                 datetime.datetime.fromtimestamp(trial_end_timestamp)
                             )
-                            logger.info(f"⏰ Trial end: {trial_end}")
                         
                         # Get current_period_end from items (not at subscription level)
                         items = stripe_subscription.get('items', {})
@@ -673,7 +635,6 @@ def stripe_webhook(request):
                                 current_period_end = make_aware(
                                     datetime.datetime.fromtimestamp(current_period_end_timestamp)
                                 )
-                                logger.info(f"⏰ Current period end: {current_period_end}")
                         
                         subscription.stripe_subscription_id = stripe_subscription.id
                         subscription.status = stripe_subscription.get('status', 'active')
@@ -681,17 +642,11 @@ def stripe_webhook(request):
                         subscription.current_period_end = current_period_end
                         subscription.save()
                         
-                        logger.info(f"✅ Updated subscription {subscription.id} with Stripe data")
-                        logger.info(f"📝 New status: {subscription.status}")
-                        logger.info(f"📝 Trial end: {subscription.trial_end}")
-                        logger.info(f"📝 Period end: {subscription.current_period_end}")
                         
                         # Process referral benefits after successful subscription creation
                         try:
                             user = User.objects.get(id=user_id)
-                            logger.info(f"🎁 Processing referral benefits for user {user.email}")
                             process_referral_benefits(user, subscription)
-                            logger.info(f"✅ Referral benefits processed successfully")
                         except User.DoesNotExist:
                             logger.error(f"❌ User with id {user_id} not found for referral processing")
                         except Exception as e:
@@ -703,10 +658,7 @@ def stripe_webhook(request):
                         try:
                             if subscription.plan:
                                 user = User.objects.get(id=user_id)
-                                logger.info(f"💰 Updating analysis balance for user {user.email}")
-                                logger.info(f"💰 Plan: {subscription.plan.name}, analyses_per_interval: {subscription.plan.analyses_per_interval}")
                                 balance_obj = update_user_analysis_balance(user, subscription.plan)
-                                logger.info(f"✅ Analysis balance updated successfully: {balance_obj.balance}")
                             else:
                                 logger.warning(f"⚠️ Subscription {subscription.id} has no plan assigned")
                         except Exception as e:
@@ -723,7 +675,6 @@ def stripe_webhook(request):
                             plan_id = metadata.get('plan_id')
                             if plan_id:
                                 plan = Plan.objects.get(id=plan_id)
-                                logger.info(f"📋 Creating new subscription from webhook data")
                                 
                                 trial_end = None
                                 current_period_end = None
@@ -752,12 +703,8 @@ def stripe_webhook(request):
                                     trial_end=trial_end,
                                     current_period_end=current_period_end
                                 )
-                                logger.info(f"✅ Created subscription {subscription.id}")
                                 
-                                # Update balance for newly created subscription
-                                logger.info(f"💰 Updating analysis balance for newly created subscription")
                                 balance_obj = update_user_analysis_balance(user, plan)
-                                logger.info(f"✅ Analysis balance updated: {balance_obj.balance}")
                         except Exception as create_error:
                             logger.error(f"❌ Error creating subscription from webhook: {str(create_error)}")
                             import traceback
@@ -771,7 +718,6 @@ def stripe_webhook(request):
                 logger.warning(f"⚠️ Missing required data - user_id: {user_id}, subscription: {obj.get('subscription')}")
 
         elif event_type == "customer.subscription.created":
-            logger.info("📋 Processing customer.subscription.created")
             
             try:
                 # Safely handle timestamps
@@ -783,7 +729,6 @@ def stripe_webhook(request):
                     trial_end = make_aware(
                         datetime.datetime.fromtimestamp(obj["trial_end"])
                     )
-                    logger.info(f"⏰ Trial end: {trial_end}")
                 
                 # Get current_period_end from items
                 items = obj.get("items", {})
@@ -793,7 +738,6 @@ def stripe_webhook(request):
                         current_period_end = make_aware(
                             datetime.datetime.fromtimestamp(first_item["current_period_end"])
                         )
-                        logger.info(f"⏰ Current period end: {current_period_end}")
                 
                 subscription, created = Subscription.objects.update_or_create(
                     stripe_subscription_id=obj["id"],
@@ -803,14 +747,11 @@ def stripe_webhook(request):
                         "current_period_end": current_period_end,
                     },
                 )
-                logger.info(f"{'✅ Created' if created else '✅ Updated'} subscription for Stripe ID: {obj['id']} (DB ID: {subscription.id})")
                 
                 # Process referral benefits for subscription.created event
                 try:
                     if subscription.user:
-                        logger.info(f"🎁 Processing referral benefits for subscription.created event")
                         process_referral_benefits(subscription.user, subscription)
-                        logger.info(f"✅ Referral benefits processed successfully")
                 except Exception as e:
                     logger.error(f"❌ Error in referral processing for subscription.created: {str(e)}")
                     import traceback
@@ -819,10 +760,7 @@ def stripe_webhook(request):
                 # Update analysis balance
                 try:
                     if subscription.user and subscription.plan:
-                        logger.info(f"💰 Updating analysis balance for user {subscription.user.email}")
-                        logger.info(f"💰 Plan: {subscription.plan.name}, analyses_per_interval: {subscription.plan.analyses_per_interval}")
                         balance_obj = update_user_analysis_balance(subscription.user, subscription.plan)
-                        logger.info(f"✅ Analysis balance updated successfully: {balance_obj.balance}")
                     else:
                         logger.warning(f"⚠️ Cannot update balance - user: {subscription.user}, plan: {subscription.plan}")
                 except Exception as e:
@@ -835,9 +773,8 @@ def stripe_webhook(request):
                 import traceback
                 logger.error(f"Traceback: {traceback.format_exc()}")
 
-        # ✅ Handle subscription updated
+        #  Handle subscription updated
         elif event_type == "customer.subscription.updated":
-            logger.info("🔄 Processing customer.subscription.updated")
             
             try:
                 # Get existing subscription to check for period change
@@ -853,24 +790,19 @@ def stripe_webhook(request):
                     trial_end = make_aware(
                         datetime.datetime.fromtimestamp(obj["trial_end"])
                     )
-                    logger.info(f"⏰ Trial end: {trial_end}")
                 
                 if obj.get("current_period_end"):
                     current_period_end = make_aware(
                         datetime.datetime.fromtimestamp(obj["current_period_end"])
                     )
-                    logger.info(f"⏰ Current period end: {current_period_end}")
                 
-                logger.info(f"📊 New status: {obj['status']}")
                 
                 # Check if it's a new billing period (renewal)
                 if subscription and subscription.current_period_end and current_period_end:
                     if current_period_end > subscription.current_period_end:
-                        logger.info(f"🔄 New billing period detected, resetting analysis balance")
                         try:
                             if subscription.plan:
                                 update_user_analysis_balance(subscription.user, subscription.plan)
-                                logger.info(f"✅ Analysis balance reset for new billing period")
                         except Exception as e:
                             logger.error(f"❌ Error resetting analysis balance: {str(e)}")
                 
@@ -882,8 +814,6 @@ def stripe_webhook(request):
                     current_period_end=current_period_end,
                 )
                 
-                logger.info(f"✅ Updated {updated_count} subscriptions for Stripe ID: {obj['id']}")
-                
             except Exception as e:
                 logger.error(f"❌ Error processing customer.subscription.updated: {str(e)}")
                 import traceback
@@ -891,14 +821,11 @@ def stripe_webhook(request):
 
         # ✅ Handle subscription deleted/cancelled
         elif event_type == "customer.subscription.deleted":
-            logger.info("🗑️ Processing customer.subscription.deleted")
             
             try:
                 updated_count = Subscription.objects.filter(
                     stripe_subscription_id=obj["id"]
                 ).update(status="canceled")
-                
-                logger.info(f"✅ Canceled {updated_count} subscriptions for Stripe ID: {obj['id']}")
                 
             except Exception as e:
                 logger.error(f"❌ Error processing customer.subscription.deleted: {str(e)}")
@@ -914,8 +841,6 @@ def stripe_webhook(request):
         logger.error(f"Traceback: {traceback.format_exc()}")
         return HttpResponse(status=500)
 
-    logger.info(f"✅ Webhook processing completed successfully for event: {event_type}")
-    logger.info("=" * 80)
     return HttpResponse(status=200)
 
 
