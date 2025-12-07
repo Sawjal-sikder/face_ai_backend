@@ -180,26 +180,32 @@ class CreateSubscriptionView(APIView):
         except Plan.DoesNotExist:
             return Response({"error": "Plan not found"}, status=404)
 
-        # Check if user already has an active subscription or trial
-        existing_subscription = Subscription.get_user_active_subscription(request.user)
+        # Check user's analysis balance and unlimited status
+        balance_obj = None
+        try:
+            balance_obj = analysesBalance.objects.get(user=request.user)
+            has_balance = balance_obj.balance > 0
+            is_unlimited = balance_obj.balance >= 999999
+        except analysesBalance.DoesNotExist:
+            has_balance = False
+            is_unlimited = False
         
-        if existing_subscription:
+        # Only allow purchase if balance is 0 and is_unlimited is false
+        if has_balance or is_unlimited:
+            existing_subscription = Subscription.get_user_active_subscription(request.user)
+            
             error_data = {
-                "current_plan": existing_subscription.plan.name if existing_subscription.plan else "Unknown",
-                "status": existing_subscription.status,
-                "subscription_id": existing_subscription.id
+                "error": "You already have an active subscription",
+                "message": "You cannot create a new subscription while you have an active plan",
+                "balance": balance_obj.balance if balance_obj else 0,
+                "is_unlimited": is_unlimited
             }
             
-            if existing_subscription.is_trial():
+            if existing_subscription:
                 error_data.update({
-                    "error": "You already have an active trial period",
-                    "message": "You cannot create a new subscription while your trial is active",
-                    "trial_end": existing_subscription.trial_end
-                })
-            elif existing_subscription.is_paid_active():
-                error_data.update({
-                    "error": "You already have an active subscription",
-                    "message": "You cannot create a new subscription while you have an active plan",
+                    "current_plan": existing_subscription.plan.name if existing_subscription.plan else "Unknown",
+                    "status": existing_subscription.status,
+                    "subscription_id": existing_subscription.id,
                     "current_period_end": existing_subscription.current_period_end
                 })
             
