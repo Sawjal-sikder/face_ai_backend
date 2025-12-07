@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     # for app
     'accounts',
     'ai',
+    'payment',
 
 ]
 

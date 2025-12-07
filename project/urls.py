@@ -11,6 +11,7 @@ urlpatterns = [
     path('api/', include('accounts.urls')),
     path('accounts/', include('allauth.urls')),
     path('api/ai/', include('ai.urls')),
+    path('api/payment/', include('payment.urls')),
     path('', lambda request: JsonResponse({"message": "Welcome to the Project Backend API"})),
 
 ]

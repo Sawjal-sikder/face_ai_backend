@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: face_ai_backend
-    command: gunicorn project.wsgi:application --bind 0.0.0.0:14020
+    command: gunicorn project.wsgi:application --bind 0.0.0.0:14020 --timeout 120 --workers 3 --threads 2 --worker-class sync
     ports:
       - "14020:14020"
     depends_on:
