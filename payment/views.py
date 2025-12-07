@@ -4,6 +4,7 @@ import logging
 import datetime
 from .models import *
 from .serializers import *
+from .utils import update_user_analysis_balance
 from django.conf import settings
 from rest_framework import status
 from django.utils import timezone
@@ -99,6 +100,7 @@ class PlanListCreateView(generics.ListCreateAPIView):
         else:
           amount = None
         trial_days = request.data.get("trial_days", 0)
+        analyses_per_interval = request.data.get("analyses_per_interval", 0)
 
         if not all([name, interval, amount]):
             return Response({"error": "name, interval, amount required"}, status=400)
@@ -120,6 +122,7 @@ class PlanListCreateView(generics.ListCreateAPIView):
                   amount=int(amount),
                   interval=interval,
                   trial_days=trial_days,
+                  analyses_per_interval=int(analyses_per_interval),
                   active=True
                   )
 
@@ -649,6 +652,14 @@ def stripe_webhook(request):
                         status="pending"
                     ).first()
                     
+                    # If no pending subscription, try to get any subscription for this user
+                    if not subscription:
+                        subscription = Subscription.objects.filter(
+                            user_id=user_id,
+                            stripe_subscription_id__isnull=True
+                        ).first()
+                        logger.info(f"ℹ️ No pending subscription, found subscription without Stripe ID: {subscription}")
+                    
                     if subscription:
                         # Safely handle timestamps
                         trial_end = None
@@ -696,10 +707,70 @@ def stripe_webhook(request):
                             logger.error(f"❌ Error in referral processing: {str(e)}")
                             import traceback
                             logger.error(f"Traceback: {traceback.format_exc()}")
+                        
+                        # Update analysis balance after successful subscription
+                        try:
+                            if subscription.plan:
+                                user = User.objects.get(id=user_id)
+                                logger.info(f"💰 Updating analysis balance for user {user.email}")
+                                logger.info(f"💰 Plan: {subscription.plan.name}, analyses_per_interval: {subscription.plan.analyses_per_interval}")
+                                balance_obj = update_user_analysis_balance(user, subscription.plan)
+                                logger.info(f"✅ Analysis balance updated successfully: {balance_obj.balance}")
+                            else:
+                                logger.warning(f"⚠️ Subscription {subscription.id} has no plan assigned")
+                        except Exception as e:
+                            logger.error(f"❌ Error updating analysis balance: {str(e)}")
+                            import traceback
+                            logger.error(f"Traceback: {traceback.format_exc()}")
                             
                     else:
-                        logger.warning(f"⚠️ No pending subscription found for user {user_id}")
+                        logger.warning(f"⚠️ No subscription found for user {user_id}")
                         logger.warning(f"⚠️ Available subscriptions for user: {Subscription.objects.filter(user_id=user_id).count()}")
+                        # Try to create or update subscription based on Stripe data
+                        try:
+                            user = User.objects.get(id=user_id)
+                            plan_id = metadata.get('plan_id')
+                            if plan_id:
+                                plan = Plan.objects.get(id=plan_id)
+                                logger.info(f"📋 Creating new subscription from webhook data")
+                                
+                                trial_end = None
+                                current_period_end = None
+                                
+                                trial_end_timestamp = stripe_subscription.get('trial_end')
+                                if trial_end_timestamp:
+                                    trial_end = make_aware(
+                                        datetime.datetime.fromtimestamp(trial_end_timestamp)
+                                    )
+                                
+                                items = stripe_subscription.get('items', {})
+                                if items and items.get('data'):
+                                    first_item = items['data'][0]
+                                    current_period_end_timestamp = first_item.get('current_period_end')
+                                    if current_period_end_timestamp:
+                                        current_period_end = make_aware(
+                                            datetime.datetime.fromtimestamp(current_period_end_timestamp)
+                                        )
+                                
+                                subscription = Subscription.objects.create(
+                                    user=user,
+                                    plan=plan,
+                                    stripe_customer_id=obj.get('customer'),
+                                    stripe_subscription_id=stripe_subscription.id,
+                                    status=stripe_subscription.get('status', 'active'),
+                                    trial_end=trial_end,
+                                    current_period_end=current_period_end
+                                )
+                                logger.info(f"✅ Created subscription {subscription.id}")
+                                
+                                # Update balance for newly created subscription
+                                logger.info(f"💰 Updating analysis balance for newly created subscription")
+                                balance_obj = update_user_analysis_balance(user, plan)
+                                logger.info(f"✅ Analysis balance updated: {balance_obj.balance}")
+                        except Exception as create_error:
+                            logger.error(f"❌ Error creating subscription from webhook: {str(create_error)}")
+                            import traceback
+                            logger.error(f"Traceback: {traceback.format_exc()}")
                         
                 except Exception as e:
                     logger.error(f"❌ Error processing checkout.session.completed: {str(e)}")
@@ -754,6 +825,20 @@ def stripe_webhook(request):
                     import traceback
                     logger.error(f"Traceback: {traceback.format_exc()}")
                 
+                # Update analysis balance
+                try:
+                    if subscription.user and subscription.plan:
+                        logger.info(f"💰 Updating analysis balance for user {subscription.user.email}")
+                        logger.info(f"💰 Plan: {subscription.plan.name}, analyses_per_interval: {subscription.plan.analyses_per_interval}")
+                        balance_obj = update_user_analysis_balance(subscription.user, subscription.plan)
+                        logger.info(f"✅ Analysis balance updated successfully: {balance_obj.balance}")
+                    else:
+                        logger.warning(f"⚠️ Cannot update balance - user: {subscription.user}, plan: {subscription.plan}")
+                except Exception as e:
+                    logger.error(f"❌ Error updating analysis balance: {str(e)}")
+                    import traceback
+                    logger.error(f"Traceback: {traceback.format_exc()}")
+                
             except Exception as e:
                 logger.error(f"❌ Error processing customer.subscription.created: {str(e)}")
                 import traceback
@@ -764,6 +849,11 @@ def stripe_webhook(request):
             logger.info("🔄 Processing customer.subscription.updated")
             
             try:
+                # Get existing subscription to check for period change
+                subscription = Subscription.objects.filter(
+                    stripe_subscription_id=obj["id"]
+                ).first()
+                
                 # Safely handle timestamps
                 trial_end = None
                 current_period_end = None
@@ -781,6 +871,17 @@ def stripe_webhook(request):
                     logger.info(f"⏰ Current period end: {current_period_end}")
                 
                 logger.info(f"📊 New status: {obj['status']}")
+                
+                # Check if it's a new billing period (renewal)
+                if subscription and subscription.current_period_end and current_period_end:
+                    if current_period_end > subscription.current_period_end:
+                        logger.info(f"🔄 New billing period detected, resetting analysis balance")
+                        try:
+                            if subscription.plan:
+                                update_user_analysis_balance(subscription.user, subscription.plan)
+                                logger.info(f"✅ Analysis balance reset for new billing period")
+                        except Exception as e:
+                            logger.error(f"❌ Error resetting analysis balance: {str(e)}")
                 
                 updated_count = Subscription.objects.filter(
                     stripe_subscription_id=obj["id"]
@@ -825,3 +926,25 @@ def stripe_webhook(request):
     logger.info(f"✅ Webhook processing completed successfully for event: {event_type}")
     logger.info("=" * 80)
     return HttpResponse(status=200)
+
+
+class UserAnalysisBalanceView(APIView):
+    """Get user's current analysis balance"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            balance_obj = analysesBalance.objects.get(user=request.user)
+            is_unlimited = balance_obj.balance >= 999999
+            
+            return Response({
+                "balance": balance_obj.balance if not is_unlimited else "unlimited",
+                "is_unlimited": is_unlimited,
+                "updated_at": balance_obj.updated_at
+            }, status=200)
+        except analysesBalance.DoesNotExist:
+            return Response({
+                "balance": 0,
+                "is_unlimited": False,
+                "message": "No active subscription"
+            }, status=200)
