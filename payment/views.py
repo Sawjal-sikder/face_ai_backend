@@ -29,26 +29,17 @@ stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 User = get_user_model()
 
 def process_referral_benefits(user, subscription):
-    """
-    Process referral benefits when a user purchases a subscription.
-    
-    Args:
-        user: The user who purchased the subscription
-        subscription: The subscription object
-    """
+
     try:
-        logger.info(f"Processing referral benefits for user {user.id}")
         
         # Check if the user was referred by someone
         if user.referred_by:
             try:
                 # Find the referrer
                 referrer = User.objects.get(referral_code=user.referred_by)
-                logger.info(f"Found referrer {referrer.id} for user {user.id}")
                 
                 # Use current time if current_period_end is not available
                 base_time = subscription.current_period_end or timezone.now()
-                logger.info(f"Using base time: {base_time}")
                 
                 # Calculate benefit duration (e.g., 30 days from subscription end)
                 benefit_duration = datetime.timedelta(days=30)
@@ -57,27 +48,23 @@ def process_referral_benefits(user, subscription):
                 referrer.is_unlimited = True
                 referrer.package_expiry = base_time + benefit_duration
                 referrer.save()
-                logger.info(f"Granted unlimited access to referrer {referrer.id} until {referrer.package_expiry}")
                 
                 # Grant benefits to the referee (the purchaser)
                 bonus_duration = datetime.timedelta(days=7)
                 user.is_unlimited = True
                 user.package_expiry = base_time + bonus_duration
                 user.save()
-                logger.info(f"Granted bonus unlimited access to referee {user.id} until {user.package_expiry}")
                 
             except User.DoesNotExist:
-                logger.warning(f"Referrer with code {user.referred_by} not found for user {user.id}")
+                return Response({"error": "Referrer not found"}, status=404)
             except Exception as inner_e:
-                logger.error(f"Error processing referrer benefits: {str(inner_e)}")
+                return Response({"error": f"Error processing referral benefits: {str(inner_e)}"}, status=500)
                 
         else:
-            logger.info(f"User {user.id} was not referred by anyone, skipping referral benefits")
+            return Response({"message": "User was not referred by anyone"}, status=200)
             
     except Exception as e:
-        logger.error(f"Error processing referral benefits for user {user.id}: {str(e)}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
+        return Response({"error": f"Error in referral processing: {str(e)}"}, status=500)
 
 
 
@@ -86,15 +73,13 @@ class PlanListCreateView(generics.ListCreateAPIView):
     serializer_class = PlanSerializer
 
     def create(self, request, *args, **kwargs):
-        """
-        Create Stripe Product + Price, then save in Plan model.
-        """
+
         name = request.data.get("name")
-        interval = request.data.get("interval")  # "month" or "year"
-        amount_eur = request.data.get("amount")  # in eur
+        interval = request.data.get("interval")  
+        amount_eur = request.data.get("amount")  
         if amount_eur is not None:
           try:
-            amount = int(float(amount_eur) * 100)  # convert eur to cents
+            amount = int(float(amount_eur) * 100) 
           except ValueError:
             return Response({"error": "Invalid amount format"}, status=400)
         else:
@@ -212,7 +197,7 @@ class CreateSubscriptionView(APIView):
             return Response(error_data, status=400)
 
         try:
-            # ✅ Create or get Stripe customer
+            # Create or get Stripe customer
             customer = None
             existing_sub = Subscription.objects.filter(user=request.user).first()
             
@@ -231,7 +216,7 @@ class CreateSubscriptionView(APIView):
                     }
                 )
 
-            # ✅ Create Stripe Checkout Session
+            # Create Stripe Checkout Session
             checkout_session = stripe.checkout.Session.create(
                 customer=customer.id,
                 payment_method_types=['card'],
@@ -258,15 +243,15 @@ class CreateSubscriptionView(APIView):
                 allow_promotion_codes=True,
             )
 
-            # ✅ Save pending subscription in DB (will be updated by webhook)
+            #  Save pending subscription in DB (will be updated by webhook)
             subscription = Subscription.objects.create(
                 user=request.user,
                 plan=plan,
                 stripe_customer_id=customer.id,
-                stripe_subscription_id=None,  # Will be set by webhook
-                status="pending",  # Will be updated to "trialing" by webhook
-                trial_end=None,  # Will be set by webhook
-                current_period_end=None,  # Will be set by webhook
+                stripe_subscription_id=None,  
+                status="pending",  
+                trial_end=None,  
+                current_period_end=None,  
             )
 
             return Response({
@@ -546,14 +531,14 @@ def stripe_webhook(request):
     endpoint_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
     
     # Enhanced logging for debugging
-    logger.info("=" * 80)
-    logger.info("🔔 STRIPE WEBHOOK RECEIVED")
-    logger.info(f"📝 Request method: {request.method}")
-    logger.info(f"📝 Request path: {request.path}")
-    logger.info(f"📝 Content-Type: {request.META.get('CONTENT_TYPE', 'N/A')}")
-    logger.info(f"🔑 Signature present: {sig_header is not None}")
-    logger.info(f"🔑 Webhook secret configured: {endpoint_secret is not None}")
-    logger.info(f"📦 Payload size: {len(payload)} bytes")
+    # logger.info("=" * 80)
+    # logger.info("🔔 STRIPE WEBHOOK RECEIVED")
+    # logger.info(f"📝 Request method: {request.method}")
+    # logger.info(f"📝 Request path: {request.path}")
+    # logger.info(f"📝 Content-Type: {request.META.get('CONTENT_TYPE', 'N/A')}")
+    # logger.info(f"🔑 Signature present: {sig_header is not None}")
+    # logger.info(f"🔑 Webhook secret configured: {endpoint_secret is not None}")
+    # logger.info(f"📦 Payload size: {len(payload)} bytes")
     
     if not sig_header:
         logger.error("❌ Missing Stripe signature header")
