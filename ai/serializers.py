@@ -53,9 +53,16 @@ class ImageAnalysisResultSerializer(serializers.ModelSerializer):
 class UserManagementSerializer(serializers.ModelSerializer):
     image_analysis = ImageAnalysisResultSerializer(many=True, read_only=True, source='imageanalysisresult_set')
     total_analyses = serializers.SerializerMethodField()
+    subscription_plan = serializers.SerializerMethodField()
     class Meta:
         model = User
-        fields = ["id", "full_name", "email", "phone_number", "total_analyses" ,"image_analysis"]
+        fields = ["id", "full_name", "email", "phone_number", "total_analyses" , "subscription_plan" ,"image_analysis"]
     
     def get_total_analyses(self, obj):
         return obj.imageanalysisresult_set.count()
+    
+    def get_subscription_plan(self, obj):
+        latest_subscription = obj.subscriptions.order_by('-created_at').first()
+        if latest_subscription and latest_subscription.plan:
+            return latest_subscription.plan.name
+        return None
