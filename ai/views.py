@@ -336,3 +336,19 @@ class UserManagementView(generics.ListAPIView):
     serializer_class = UserManagementSerializer
     queryset = User.objects.all().order_by("-id")
     
+    
+    
+class PaymentListView(APIView):
+    def get(self, request, *args, **kwargs):
+        subscriptions = Subscription.objects.select_related('user', 'plan').all().order_by('-created_at')
+        data = []
+        for sub in subscriptions:
+            data.append({
+                "id": sub.id,
+                "user": sub.user.full_name if sub.user else None,
+                "email": sub.user.email if sub.user else None,
+                "plan": sub.plan.name if sub.plan else None,
+                "amount": sub.plan.amount / 100 if sub.plan else 0,
+                "created_at": sub.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            })
+        return Response({"subscriptions": data})
