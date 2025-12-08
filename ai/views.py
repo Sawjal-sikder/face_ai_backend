@@ -10,7 +10,7 @@ from django.db.models import Count, Sum
 from rest_framework.views import APIView
 from ai.models import ImageAnalysisResult
 from rest_framework.response import Response
-from .serializers import ImageAnalysisResultSerializer
+from .serializers import ImageAnalysisResultSerializer, UserManagementSerializer
 from django.contrib.auth import get_user_model
 from payment.models import Subscription, Plan
 from django.db.models.functions import TruncMonth
@@ -329,3 +329,10 @@ class PaymentGraph(APIView):
             })
 
         return Response({"payments": data})
+    
+    
+    
+class UserManagementView(generics.ListAPIView):
+    serializer_class = UserManagementSerializer
+    queryset = User.objects.all().order_by("-id")
+    

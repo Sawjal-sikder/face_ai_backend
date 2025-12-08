@@ -1,6 +1,9 @@
 from rest_framework import serializers
 from .models import ImageAnalysisResult, Ratings
+from django.contrib.auth import get_user_model
 
+
+User = get_user_model()
 
 class RatingsSerializer(serializers.ModelSerializer):
     class Meta:
@@ -44,3 +47,15 @@ class ImageAnalysisResultSerializer(serializers.ModelSerializer):
         representation['average_rating'] = round(avg, 2)  # Keep as float, not string
         representation['user'] = instance.user.full_name if instance.user else None
         return representation
+
+
+
+class UserManagementSerializer(serializers.ModelSerializer):
+    image_analysis = ImageAnalysisResultSerializer(many=True, read_only=True, source='imageanalysisresult_set')
+    total_analyses = serializers.SerializerMethodField()
+    class Meta:
+        model = User
+        fields = ["id", "full_name", "email", "phone_number", "total_analyses" ,"image_analysis"]
+    
+    def get_total_analyses(self, obj):
+        return obj.imageanalysisresult_set.count()
