@@ -71,6 +71,7 @@ def process_referral_benefits(user, subscription):
 class PlanListCreateView(generics.ListCreateAPIView):
     queryset = Plan.objects.filter(active=True)
     serializer_class = PlanSerializer
+    permission_classes = [permissions.AllowAny]
 
     def create(self, request, *args, **kwargs):
 
@@ -119,7 +120,8 @@ class PlanListCreateView(generics.ListCreateAPIView):
             return Response({"error": str(e)}, status=400)
 
 
-class PlanUpdateView(generics.RetrieveUpdateAPIView):
+
+class PlanUpdateView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Plan.objects.all()
     serializer_class = PlanUpdateSerializer
     lookup_field = "id"
@@ -127,7 +129,6 @@ class PlanUpdateView(generics.RetrieveUpdateAPIView):
     def perform_update(self, serializer):
         plan = self.get_object()
         old_amount = getattr(plan, "amount", None)
-
         updated_plan = serializer.save()
 
         try:
@@ -138,7 +139,10 @@ class PlanUpdateView(generics.RetrieveUpdateAPIView):
             )
 
             # If amount changed, create a new Stripe Price
-            if "amount" in self.request.data and int(self.request.data["amount"]) != old_amount:
+            if (
+                "amount" in self.request.data
+                and int(self.request.data["amount"]) != old_amount
+            ):
                 new_price = stripe.Price.create(
                     product=plan.stripe_product_id,
                     unit_amount=int(self.request.data["amount"]),
@@ -149,14 +153,43 @@ class PlanUpdateView(generics.RetrieveUpdateAPIView):
                 updated_plan.save()
 
         except Exception as e:
-            # Log error but don't block update
             print("Stripe update error:", e)
+
+    def perform_destroy(self, instance):
+        """Delete Stripe product + local Plan"""
+        try:
+            # 1. Deactivate the Stripe Product
+            stripe.Product.modify(
+                instance.stripe_product_id,
+                active=False
+            )
+
+            # 2. Deactivate all Stripe Prices under this product
+            prices = stripe.Price.list(product=instance.stripe_product_id)
+            for price in prices:
+                stripe.Price.modify(price.id, active=False)
+
+        except Exception as e:
+            print("Stripe delete error:", e)
+
+        # Delete local Plan
+        instance.delete()
+
+    def delete(self, request, *args, **kwargs):
+        """Return custom message after delete"""
+        plan = self.get_object()
+        self.perform_destroy(plan)
+        return Response(
+            {"message": "Plan deleted successfully"},
+            status=status.HTTP_200_OK
+        )
+
 
 
 
 class CreateSubscriptionView(APIView):
     def post(self, request):
-        plan_id = request.data.get("plan_id")  # Pass Plan PK from frontend
+        plan_id = request.data.get("plan_id")  
         success_url = os.getenv("BASE_URL_FRONTEND", "http://localhost:3000/")
         cancel_url = os.getenv("BASE_URL_FRONTEND", "http://localhost:3000/")
         
