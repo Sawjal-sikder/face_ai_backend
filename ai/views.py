@@ -292,3 +292,40 @@ class UserGraph(APIView):
             })
 
         return Response({"user_signups": data})
+    
+class PaymentGraph(APIView):
+    def get(self, request, *args, **kwargs):
+
+        # Calculate last 12 months range
+        today = timezone.now().date().replace(day=1)
+        months = []
+
+        for i in range(12):
+            month = today - datetime.timedelta(days=30 * i)
+            months.append(month.replace(day=1))
+
+        months = sorted(months)
+
+        # Query payment amounts grouped by month
+        payments = (
+            Subscription.objects
+            .select_related('plan')
+            .annotate(month=TruncMonth('created_at'))
+            .values('month')
+            .annotate(amount=Sum('plan__amount'))
+            .order_by('month')
+        )
+
+        # Convert to dict for fast lookup (amount in cents, convert to currency units)
+        payment_dict = {entry["month"].date(): (entry["amount"] or 0) / 100 for entry in payments}
+
+        # Build final 12-month output
+        data = []
+        for m in months:
+            data.append({
+                "month_year": m.strftime("%b-%Y"),
+                "month_short": m.strftime("%b"),
+                "amount": payment_dict.get(m, 0) 
+            })
+
+        return Response({"payments": data})
