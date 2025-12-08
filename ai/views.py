@@ -1,16 +1,20 @@
+import datetime
 from statistics import mean
-from datetime import timedelta
 from django.db import models
-from django.db.models import Count, Sum
+from datetime import timedelta
+from django.utils import timezone
 from django.shortcuts import render
 from rest_framework import generics
 from django.utils.timezone import now
+from django.db.models import Count, Sum
 from rest_framework.views import APIView
 from ai.models import ImageAnalysisResult
 from rest_framework.response import Response
 from .serializers import ImageAnalysisResultSerializer
 from django.contrib.auth import get_user_model
 from payment.models import Subscription, Plan
+from django.db.models.functions import TruncMonth
+
 
 User = get_user_model()
 
@@ -251,3 +255,40 @@ class UserOverviewView(APIView):
         }
         
         return Response(data)
+    
+    
+class UserGraph(APIView):
+    def get(self, request, *args, **kwargs):
+
+        # Calculate last 12 months range
+        today = timezone.now().date().replace(day=1)
+        months = []
+
+        for i in range(12):
+            month = today - datetime.timedelta(days=30 * i)
+            months.append(month.replace(day=1))
+
+        months = sorted(months)
+
+        # Query signup counts grouped by month
+        user_signups = (
+            User.objects
+            .annotate(month=TruncMonth('created_at'))
+            .values('month')
+            .annotate(count=Count('id'))
+            .order_by('month')
+        )
+
+        # Convert to dict for fast lookup
+        signup_dict = {entry["month"].date(): entry["count"] for entry in user_signups}
+
+        # Build final 12-month output
+        data = []
+        for m in months:
+            data.append({
+                "month_year": m.strftime("%b-%Y"),
+                "month_short": m.strftime("%b"),
+                "count": signup_dict.get(m, 0) 
+            })
+
+        return Response({"user_signups": data})

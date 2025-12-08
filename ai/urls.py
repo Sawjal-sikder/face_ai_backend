@@ -12,4 +12,5 @@ urlpatterns = [
 
     # Admin URLs
     path('admin/user-overview/', UserOverviewView.as_view(), name='admin-user-overview'),
+    path('admin/user-graph/', UserGraph.as_view(), name='admin-user-graph'),
 ]
