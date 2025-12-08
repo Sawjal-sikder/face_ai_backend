@@ -1,6 +1,7 @@
 from statistics import mean
 from datetime import timedelta
-from django.db.models import Count
+from django.db import models
+from django.db.models import Count, Sum
 from django.shortcuts import render
 from rest_framework import generics
 from django.utils.timezone import now
@@ -8,6 +9,10 @@ from rest_framework.views import APIView
 from ai.models import ImageAnalysisResult
 from rest_framework.response import Response
 from .serializers import ImageAnalysisResultSerializer
+from django.contrib.auth import get_user_model
+from payment.models import Subscription, Plan
+
+User = get_user_model()
 
 
 # Create your views here.
@@ -108,31 +113,45 @@ class ProgressView(APIView):
         rating = [analysis.ratings.skin_quality for analysis in analyses]
         user_created_at = user.created_at
         
-        # Calculate this month and previous month date ranges
+        # Get analyses for this month and last month
         today = now().date()
-        start_of_this_month = today.replace(day=1)
-        start_of_last_month = (start_of_this_month - timedelta(days=1)).replace(day=1)
+        start_of_month = today.replace(day=1)
+        last_month_start = (start_of_month - timedelta(days=1)).replace(day=1)
         
-        # Filter analyses for this month and last month
-        analyses_this_month = [a for a in analyses if a.created_at.date() >= start_of_this_month]
-        analyses_last_month = [a for a in analyses if start_of_last_month <= a.created_at.date() < start_of_this_month]
+        analyses_goals_this_month = [analysis.ratings.goals for analysis in analyses if analysis.created_at.date() >= start_of_month]
+        analyses_goals_last_month = [analysis.ratings.goals for analysis in analyses if last_month_start <= analysis.created_at.date() < start_of_month]
         
-        # Calculate average ratings for this month
-        ratings_this_month = [a.ratings.skin_quality for a in analyses_this_month]
-        average_rating_this_month = round(sum(ratings_this_month) / len(ratings_this_month), 2) if ratings_this_month else 0
+        # Calculate average goals for this month and last month
+        avg_goals_this_month = round(mean(analyses_goals_this_month), 2) if analyses_goals_this_month else 0
+        avg_goals_last_month = round(mean(analyses_goals_last_month), 2) if analyses_goals_last_month else 0
         
-        # Calculate average ratings for last month
-        ratings_last_month = [a.ratings.skin_quality for a in analyses_last_month]
-        average_rating_last_month = round(sum(ratings_last_month) / len(ratings_last_month), 2) if ratings_last_month else 0
+        avarage_rating_list = []
+        for analysis in analyses:
+            ratings = [
+                float(analysis.ratings.skin_quality or 0),
+                float(analysis.ratings.jawline_definition or 0),
+                float(analysis.ratings.cheekbone_structure or 0),
+                float(analysis.ratings.eye_area or 0),
+                float(analysis.ratings.facial_proportions or 0)
+            ]
+            avg_rating = sum(ratings) / 5
+            avarage_rating_list.append(avg_rating)
         
-        # increse count of last month
-        increse_goal_score = average_rating_this_month - average_rating_last_month
+        # Calculate improvement: last value minus average of all previous values
+        improvement_from_last_two = 0
+        if len(avarage_rating_list) >= 2:
+            # Average of all values except the last one
+            avg_without_last = round(sum(avarage_rating_list[:-1]) / len(avarage_rating_list[:-1]), 2)
+            last = avarage_rating_list[-1]
+            improvement_from_last_two = round(last - avg_without_last, 2)
         
         data = {
-            "days_active": (now().date() - user_created_at.date()).days,
+            "improvement_ratings": improvement_from_last_two,
             "since_at": user_created_at.strftime("%d %B"),
-            "average_ratings": round(sum(rating) / len(analyses), 2) if analyses else 0,
-            "increse_goal_score": increse_goal_score,
+            "days_active": (now().date() - user_created_at.date()).days,
+            "since_at_active": user_created_at.strftime("%d %B"),
+            "goal_score": round(mean([analysis.ratings.goals for analysis in analyses]), 2) if analyses else 0,
+            "this_month_improvement_goals": round(avg_goals_this_month - avg_goals_last_month, 2),
             "today_scans": len([analysis for analysis in analyses if analysis.created_at.date() == now().date()])
         }
         
@@ -204,4 +223,31 @@ class DetailedMetricsView(APIView):
             "detailed_metrics": average_data,
         }
 
+        return Response(data)
+
+
+
+class UserOverviewView(APIView):
+    def get(self, request, *args, **kwargs):
+        total_analysis = ImageAnalysisResult.objects.count()
+        total_user = User.objects.count()
+        
+        # Calculate total earnings from active subscriptions
+        # Sum the plan amounts for all subscriptions with active or trialing status
+        total_earnings = Subscription.objects.filter(
+            status__in=['active', 'trialing']
+        ).select_related('plan').aggregate(
+            total=Sum('plan__amount')
+        )['total'] or 0
+        
+        # Convert from cents to currency units (e.g., cents to euros/dollars)
+        total_earnings = total_earnings / 100
+        
+        data = {
+            "total_user": total_user,
+            "total_earnings": total_earnings,
+            "total_subscriptions": Subscription.objects.count(),
+            "total_analysis": total_analysis,
+        }
+        
         return Response(data)

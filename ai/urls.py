@@ -9,4 +9,7 @@ urlpatterns = [
     path('progress-data/', ProgressView.as_view(), name='analysis-progress-data'),
     path('score-history/', ScoreHistoryView.as_view(), name='analysis-score-history'),
     path('detailed-metrics/', DetailedMetricsView.as_view(), name='analysis-detailed-metrics'),
+
+    # Admin URLs
+    path('admin/user-overview/', UserOverviewView.as_view(), name='admin-user-overview'),
 ]
