@@ -197,7 +197,11 @@ class UserDetailView(APIView):
     def get(self, request, *args, **kwargs):
         user = request.user
         serializer = UserDetailSerializer(user)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        data = {
+                "user": serializer.data,
+                "balance": analysesBalance.objects.get_or_create(user=user)[0].balance
+        }
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class DeleteAccountView(generics.DestroyAPIView):
