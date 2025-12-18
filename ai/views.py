@@ -12,7 +12,7 @@ from ai.models import ImageAnalysisResult
 from rest_framework.response import Response
 from .serializers import ImageAnalysisResultSerializer, UserManagementSerializer
 from django.contrib.auth import get_user_model
-from payment.models import Subscription, Plan
+from payment.models import Subscription, Plan, analysesBalance
 from django.db.models.functions import TruncMonth
 
 
@@ -105,6 +105,7 @@ class AnalysisResultsDashboardView(APIView):
             "this_month_improvement_score": this_month_improvement_score,
             "symmetry": latest["ratings"].get("symmetry") if latest else None,
             "semmetric_improvement": semmetric_improvement,
+            "user_balance": analysesBalance.objects.get_or_create(user=user)[0].balance,
             "ai_recommendations": latest.get("ai_recommendations") if latest else None,
         })
         
