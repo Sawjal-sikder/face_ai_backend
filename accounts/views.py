@@ -82,8 +82,15 @@ class UserRegistrationVerifyCodeView(generics.GenericAPIView):
             user=user,
             defaults={'balance': 1}
         )
+        # return to access tocken and refresh to the user after activation
+        refresh = RefreshToken.for_user(user)
 
-        return Response({"message": "Account activated successfully."}, status=status.HTTP_200_OK)
+        return Response({"message": "Account activated successfully.",
+                         "tokens": {
+                             "access": str(refresh.access_token),
+                             "refresh": str(refresh)
+                         }
+                         }, status=status.HTTP_200_OK)
 
 
 class VerifyCodeView(generics.GenericAPIView):

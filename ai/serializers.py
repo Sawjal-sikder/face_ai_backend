@@ -25,6 +25,7 @@ class ImageAnalysisResultSerializer(serializers.ModelSerializer):
             "key_strengths",
             "exercise_guidance",
             "ai_recommendations",
+            "created_at"
             ]
 
     def create(self, validated_data):

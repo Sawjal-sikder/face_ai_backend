@@ -355,7 +355,8 @@ class UserDetailSerializer(serializers.ModelSerializer):
                   'full_name',
                   'phone_number',
                   'profile_picture',
-                  'is_active'
+                  'is_active',
+                  'is_superuser'
                   ]
 
 
