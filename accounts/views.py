@@ -78,10 +78,10 @@ class UserRegistrationVerifyCodeView(generics.GenericAPIView):
         user = serializer.save()
         
         # Add 1 free analysis to new user's balance
-        analysesBalance.objects.get_or_create(
-            user=user,
-            defaults={'balance': 1}
-        )
+        # analysesBalance.objects.get_or_create(
+        #     user=user,
+        #     defaults={'balance': 1}
+        # )
         # return to access tocken and refresh to the user after activation
         refresh = RefreshToken.for_user(user)
 
@@ -302,3 +302,4 @@ class ProjectCretientialsDetailView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
+
