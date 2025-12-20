@@ -175,17 +175,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ALLOW_ALL_ORIGINS = os.getenv('CORS_ALLOW_ALL_ORIGINS', 'True').lower() == 'true'
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://orderwithpluto.com",
-    "https://www.orderwithpluto.com",
-
-    "https://api.orderwithpluto.com",
-    "https://www.api.orderwithpluto.com",
-
-    "https://admin.orderwithpluto.com",
-    "https://www.admin.orderwithpluto.com",
-
-    "https://ai.orderwithpluto.com",
-    "https://www.ai.orderwithpluto.com",
+    "https://*.dsrt321.online",
 ]
 
 
@@ -385,3 +375,4 @@ LOGGING = {
         },
     },
 }
+
