@@ -9,76 +9,75 @@ from .serializers import ImageAnalysisResultSerializer
 from payment.utils import deduct_analysis
 from payment.models import analysesBalance
 from payment.paymentpermission import HasActiveSubscription
+from django.db import transaction
 
 
 class ImageAnalysis(APIView):
     permission_classes = [permissions.IsAuthenticated, HasActiveSubscription]
-    
+
     def post(self, request, *args, **kwargs):
-        # Check if user has available analyses and deduct one
+
         try:
             balance_obj = analysesBalance.objects.get(user=request.user)
-            
-            # Check if unlimited
-            is_unlimited = balance_obj.balance >= 999999
-            
-            if is_unlimited:
-                # Unlimited plan - allow analysis without deduction
-                pass
-            else:
-                # Regular plan - check balance
-                if balance_obj.balance <= 0:
-                    return Response({
-                        "message": "Insufficient analysis credits",
-                        "details": "Please subscribe to a plan or upgrade to get more credits"
-                    }, status=402)
-                
-                # Deduct 1 from balance
-                balance_obj.balance -= 1
-                balance_obj.save()
-                
         except analysesBalance.DoesNotExist:
             return Response({
                 "message": "No active subscription",
                 "details": "Please subscribe to a plan to use this feature"
             }, status=402)
-        
-        image = request.FILES.get("image")
 
+        is_unlimited = balance_obj.balance >= 999999
+
+        if not is_unlimited and balance_obj.balance <= 0:
+            return Response({
+                "message": "Insufficient analysis credits",
+                "details": "Please subscribe or upgrade your plan"
+            }, status=402)
+
+        image = request.FILES.get("image")
         if not image:
             return Response({"message": "No image provided"}, status=400)
 
-        BASE_URL_AI = os.getenv('BASE_URL_AI')
+        BASE_URL_AI = os.getenv("BASE_URL_AI")
 
-        # Send image to AI server
         ai_response = requests.post(
             BASE_URL_AI,
             files={"file": (image.name, image.read(), image.content_type)}
         )
 
         if ai_response.status_code != 200:
-            return Response({"message": "AI error", "details": ai_response.text}, status=500)
+            return Response({
+                "message": "AI error",
+                "details": ai_response.text
+            }, status=500)
 
         data = ai_response.json()
-        
+
         if data.get("face") == 0:
-            return Response({"message": "Invalid face. Please upload a real human face."}, status=400)
+            return Response({
+                "message": "Invalid face. Please upload a real human face."
+            }, status=400)
 
-        # Convert AI response to model structure
-        payload = {
-            "user": request.user.id if request.user.is_authenticated else None,
-            "face": data["face"],
-            "ratings": data["ratings"],  
-            "key_strengths": data["key_strengths"],
-            "exercise_guidance": data["exercise_guidance"],
-            "ai_recommendations": data["ai_recommendations"],
-        }
+        # Everything succeeded → now deduct safely
+        with transaction.atomic():
+            if not is_unlimited:
+                balance_obj.balance -= 1
+                balance_obj.save()
 
-        serializer = ImageAnalysisResultSerializer(data=payload)
+            payload = {
+                "user": request.user.id,
+                "face": data["face"],
+                "ratings": data["ratings"],
+                "key_strengths": data["key_strengths"],
+                "exercise_guidance": data["exercise_guidance"],
+                "ai_recommendations": data["ai_recommendations"],
+            }
 
-        if serializer.is_valid():
+            serializer = ImageAnalysisResultSerializer(data=payload)
+            serializer.is_valid(raise_exception=True)
             serializer.save()
-            return Response({"message": "Image analyzed & saved", "data": serializer.data})
 
-        return Response(serializer.errors, status=400)
+        return Response({
+            "message": "Image analyzed & saved",
+            "data": serializer.data
+        })
 
