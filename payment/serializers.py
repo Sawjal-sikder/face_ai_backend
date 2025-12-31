@@ -2,15 +2,16 @@ from rest_framework import serializers
 from .models import Plan, Subscription
 
 class PlanSerializer(serializers.ModelSerializer):
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2)
     class Meta:
         model = Plan
         fields = "__all__"
         read_only_fields = ("stripe_price_id",)
 
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        data["amount"] = instance.amount / 100
-        return data
+    # def to_representation(self, instance):
+    #     data = super().to_representation(instance)
+    #     data["amount"] = instance.amount / 100
+    #     return data
         
 class PlanUpdateSerializer(serializers.ModelSerializer):
     class Meta:
