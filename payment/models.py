@@ -21,7 +21,7 @@ class Plan(models.Model):
     # 1 = basic | 3 = standard | -1 = unlimited
 
     class Meta:
-        ordering = ['-id']
+        ordering = ['id']
 
     def __str__(self):
         return f"{self.name} ({self.interval}) - ${self.amount / 100}"
