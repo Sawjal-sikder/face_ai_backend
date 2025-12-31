@@ -8,10 +8,10 @@ class PlanSerializer(serializers.ModelSerializer):
         fields = "__all__"
         read_only_fields = ("stripe_price_id",)
 
-    # def to_representation(self, instance):
-    #     data = super().to_representation(instance)
-    #     data["amount"] = instance.amount / 100
-    #     return data
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["amount"] = instance.amount / 100
+        return data
         
 class PlanUpdateSerializer(serializers.ModelSerializer):
     class Meta:
