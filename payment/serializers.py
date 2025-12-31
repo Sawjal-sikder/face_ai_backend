@@ -11,6 +11,9 @@ class PlanSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data["amount"] = instance.amount / 100
+        if instance.analyses_per_interval == -1:
+            data["analyses_per_interval"] = "unlimited"
+    
         return data
         
 class PlanUpdateSerializer(serializers.ModelSerializer):
