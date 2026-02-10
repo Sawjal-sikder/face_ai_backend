@@ -1,3 +1,4 @@
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import get_user_model
 from django.contrib.auth import password_validation
 from django.contrib.auth.hashers import check_password
@@ -5,6 +6,7 @@ from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 from rest_framework.validators import UniqueValidator
+from payment.models import AnalysisCreditTransaction
 
 from .celery_task import Celery_send_mail
 from .models import *
@@ -399,3 +401,25 @@ class ProjectCretientialsSerializer(serializers.ModelSerializer):
             'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        user = self.user
+
+        # Add balance
+        active_balance = AnalysisCreditTransaction.get_balance(user)
+        data['get_balance'] = active_balance
+
+        # Add user info
+        data['user'] = {
+            "id": user.id,
+            "full_name": user.full_name if hasattr(user, "full_name") else f"{user.first_name} {user.last_name}",
+            "email": user.email,
+            # Add more fields as needed
+        }
+
+        return data

@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path #type: ignore
 from .image_analysis import *
 from .views import *
 

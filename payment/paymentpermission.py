@@ -1,7 +1,7 @@
-from rest_framework import permissions
-from .models import Subscription
-from rest_framework.exceptions import APIException
-from rest_framework import status
+from rest_framework import permissions, status #type: ignore
+from rest_framework.exceptions import APIException #type: ignore
+from .models import AnalysisCreditTransaction
+
 
 class SubscriptionRequired(APIException):
     status_code = status.HTTP_402_PAYMENT_REQUIRED
@@ -22,8 +22,8 @@ class HasActiveSubscription(permissions.BasePermission):
             return False
 
         # Use your Subscription model method
-        active_subscription = Subscription.get_user_active_subscription(user)
-        if active_subscription:
+        active_balance = AnalysisCreditTransaction.get_balance(user)
+        if active_balance > 0:
             return True
 
         raise SubscriptionRequired()

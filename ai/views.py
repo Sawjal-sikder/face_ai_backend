@@ -12,7 +12,7 @@ from ai.models import ImageAnalysisResult
 from rest_framework.response import Response
 from .serializers import ImageAnalysisResultSerializer, UserManagementSerializer
 from django.contrib.auth import get_user_model
-from payment.models import Subscription, Plan, analysesBalance
+from payment.models import  AnalysisCreditTransaction, PaypalEvent, Plan
 from django.db.models.functions import TruncMonth
 
 
@@ -105,7 +105,7 @@ class AnalysisResultsDashboardView(APIView):
             "this_month_improvement_score": this_month_improvement_score,
             "symmetry": latest["ratings"].get("symmetry") if latest else None,
             "semmetric_improvement": semmetric_improvement,
-            "user_balance": analysesBalance.objects.get_or_create(user=user)[0].balance,
+            # "user_balance": analysesBalance.objects.get_or_create(user=user)[0].balance,
             "ai_recommendations": latest.get("ai_recommendations") if latest else None,
         })
         
@@ -237,21 +237,18 @@ class UserOverviewView(APIView):
         total_analysis = ImageAnalysisResult.objects.count()
         total_user = User.objects.count()
         
-        # Calculate total earnings from active subscriptions
-        # Sum the plan amounts for all subscriptions with active or trialing status
-        total_earnings = Subscription.objects.filter(
-            status__in=['active', 'trialing']
-        ).select_related('plan').aggregate(
-            total=Sum('plan__amount')
-        )['total'] or 0
+        total_earnings = (
+            PaypalEvent.objects
+            .aggregate(total=Sum("amount"))["total"]
+            or 0
+        )
         
-        # Convert from cents to currency units (e.g., cents to euros/dollars)
-        total_earnings = total_earnings / 100
+
         
         data = {
             "total_user": total_user,
             "total_earnings": total_earnings,
-            "total_subscriptions": Subscription.objects.count(),
+            "total_subscriptions": AnalysisCreditTransaction.objects.count(),
             "total_analysis": total_analysis,
         }
         
@@ -308,17 +305,17 @@ class PaymentGraph(APIView):
         months = sorted(months)
 
         # Query payment amounts grouped by month
-        payments = (
-            Subscription.objects
-            .select_related('plan')
-            .annotate(month=TruncMonth('created_at'))
-            .values('month')
-            .annotate(amount=Sum('plan__amount'))
-            .order_by('month')
-        )
+        # payments = (
+        #     Subscription.objects
+        #     .select_related('plan')
+        #     .annotate(month=TruncMonth('created_at'))
+        #     .values('month')
+        #     .annotate(amount=Sum('plan__amount'))
+        #     .order_by('month')
+        # )
 
         # Convert to dict for fast lookup (amount in cents, convert to currency units)
-        payment_dict = {entry["month"].date(): (entry["amount"] or 0) / 100 for entry in payments}
+        # payment_dict = {entry["month"].date(): (entry["amount"] or 0) / 100 for entry in payments}
 
         # Build final 12-month output
         data = []
@@ -326,7 +323,7 @@ class PaymentGraph(APIView):
             data.append({
                 "month_year": m.strftime("%b-%Y"),
                 "month_short": m.strftime("%b"),
-                "amount": payment_dict.get(m, 0) 
+                "amount": 0
             })
 
         return Response({"payments": data})
@@ -341,7 +338,7 @@ class UserManagementView(generics.ListAPIView):
     
 class PaymentListView(APIView):
     def get(self, request, *args, **kwargs):
-        subscriptions = Subscription.objects.select_related('user', 'plan').all().order_by('-created_at')
+        subscriptions = PaypalEvent.objects.all().order_by('-created_at')
         data = []
         for sub in subscriptions:
             data.append({
@@ -349,7 +346,7 @@ class PaymentListView(APIView):
                 "user": sub.user.full_name if sub.user else None,
                 "email": sub.user.email if sub.user else None,
                 "plan": sub.plan.name if sub.plan else None,
-                "amount": sub.plan.amount / 100 if sub.plan else 0,
+                "amount": sub.plan.amount if sub.plan else 0,
                 "created_at": sub.created_at.strftime("%Y-%m-%d %H:%M:%S"),
             })
         return Response({"subscriptions": data})

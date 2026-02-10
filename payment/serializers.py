@@ -1,39 +1,60 @@
-from rest_framework import serializers
-from .models import Plan, Subscription
+from rest_framework import serializers #type: ignore
+from .models import Plan, PaypalEvent, AnalysisCreditTransaction
 
 class PlanSerializer(serializers.ModelSerializer):
-    amount = serializers.DecimalField(max_digits=10, decimal_places=2)
     class Meta:
         model = Plan
-        fields = "__all__"
-        read_only_fields = ("stripe_price_id",)
+        fields = [
+            'id',
+            'name',
+            'amount',
+            'interval',
+            'credits',
+            'active'
+        ]
 
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        data["amount"] = instance.amount / 100
-        if instance.analyses_per_interval == -1:
-            data["analyses_per_interval"] = "unlimited"
-    
-        return data
+
+
+
+class PaypalEventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PaypalEvent
+        fields = ['id', 'user', 'plan','amount', 'credits', 'event_response', 'created_at']
+        read_only_fields = ('id', 'user', 'amount', 'credits', 'created_at')
         
-class PlanUpdateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Plan
-        fields = ["name", "interval", "amount", "trial_days", "active", "analyses_per_interval"]
-
-class SubscriptionSerializer(serializers.ModelSerializer):
-    plan = PlanSerializer(read_only=True)
-
-    class Meta:
-        model = Subscription
-        fields = "__all__"
-        read_only_fields = (
-            "user",
-            "stripe_customer_id",
-            "stripe_subscription_id",
-            "status",
-            "trial_end",
-            "current_period_end",
-            "created_at",
-            "updated_at",
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        representation["user"] = instance.user.full_name if instance.user else None
+        representation["plan"] = instance.plan.name if instance.plan else None
+        return representation
+    
+    def create(self, validated_data):
+        request = self.context.get("request")
+        plan = validated_data.get("plan")
+        
+        if not plan:
+            raise serializers.ValidationError({"plan": "Plan is required."})
+        
+        validated_data["amount"] = plan.amount
+        validated_data["credits"] = plan.credits
+        paypal_event = super().create(validated_data)
+        
+        # create credit transaction
+        AnalysisCreditTransaction.objects.create(
+            user=request.user,
+            credits=plan.credits,
+            type="purchase",
+            reason=f"Purchase for plan {plan.name} and amount {plan.amount}",
         )
+        return paypal_event
+    
+    
+class AnalysisCreditTransactionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AnalysisCreditTransaction
+        fields = "__all__"
+        
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        representation["user"] = instance.user.full_name if instance.user else None
+        return representation
