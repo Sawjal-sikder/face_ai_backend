@@ -60,14 +60,19 @@ class RegisterSerializer(serializers.ModelSerializer):
         Celery_send_mail.delay(
             email=user.email,
             subject="Activate Your Account – Action Required",
-            message = (
-                f"Bonjour Monsieur/Madame,\n\n"
-                f"Merci de vous être inscrit. Veuillez utiliser le code ci-dessous pour activer votre compte :\n\n"
-                f"Code d'activation : <h2>{active_code.code}</h2>\n\n"
-                f"Si vous n'avez pas fait cette demande, vous pouvez ignorer cet e-mail.\n\n"
-                f"Merci,\n"
-                f"Équipe de support"
-            )
+            message=(
+                f'<p style="font-size:16px; color:#374151; line-height:1.6;">Bonjour Monsieur/Madame,</p>'
+                f'<p style="font-size:16px; color:#374151; line-height:1.6;">'
+                f'Merci de vous &ecirc;tre inscrit. Veuillez utiliser le code ci-dessous pour activer votre compte&nbsp;:</p>'
+                f'<div style="text-align:center; margin:24px 0;">'
+                f'<span style="display:inline-block; background-color:#f3f4f6; border:1px solid #e5e7eb; '
+                f'border-radius:8px; padding:16px 32px; font-size:28px; font-weight:700; letter-spacing:4px; color:#4f46e5;">'
+                f'{active_code.code}</span></div>'
+                f'<p style="font-size:16px; color:#374151; line-height:1.6;">'
+                f'Si vous n\'avez pas fait cette demande, vous pouvez ignorer cet e-mail.</p>'
+                f'<p style="font-size:16px; color:#374151; line-height:1.6;">Merci,<br/>'
+                f'<strong>&Eacute;quipe de support</strong></p>'
+            ),
         )
         return user
 
@@ -138,16 +143,21 @@ class ForgotPasswordSerializer(serializers.Serializer):
         # Send reset code via email
         Celery_send_mail.delay(
             email=user.email,
-            message = (
-                f"Bonjour Monsieur/Madame,\n\n"
-                f"Nous avons reçu une demande de réinitialisation de votre mot de passe. "
-                f"Veuillez utiliser le code ci-dessous pour réinitialiser votre mot de passe :\n\n"
-                f"Code de réinitialisation du mot de passe : <h2>{reset_code.code}</h2>\n\n"
-                f"Si vous n'avez pas fait cette demande, vous pouvez ignorer cet e-mail.\n\n"
-                f"Merci,\n"
-                f"Équipe de support"
+            subject="Reset Your Password – Action Required",
+            message=(
+                f'<p style="font-size:16px; color:#374151; line-height:1.6;">Bonjour Monsieur/Madame,</p>'
+                f'<p style="font-size:16px; color:#374151; line-height:1.6;">'
+                f'Nous avons re&ccedil;u une demande de r&eacute;initialisation de votre mot de passe. '
+                f'Veuillez utiliser le code ci-dessous pour r&eacute;initialiser votre mot de passe&nbsp;:</p>'
+                f'<div style="text-align:center; margin:24px 0;">'
+                f'<span style="display:inline-block; background-color:#f3f4f6; border:1px solid #e5e7eb; '
+                f'border-radius:8px; padding:16px 32px; font-size:28px; font-weight:700; letter-spacing:4px; color:#4f46e5;">'
+                f'{reset_code.code}</span></div>'
+                f'<p style="font-size:16px; color:#374151; line-height:1.6;">'
+                f'Si vous n\'avez pas fait cette demande, vous pouvez ignorer cet e-mail.</p>'
+                f'<p style="font-size:16px; color:#374151; line-height:1.6;">Merci,<br/>'
+                f'<strong>&Eacute;quipe de support</strong></p>'
             ),
-            subject="Reset Your Password – Action Required"
         )
         return user
 
