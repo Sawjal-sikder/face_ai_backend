@@ -60,13 +60,13 @@ class RegisterSerializer(serializers.ModelSerializer):
         Celery_send_mail.delay(
             email=user.email,
             subject="Activate Your Account – Action Required",
-            message=(
-                f"Hello Sir/Madam,\n\n"
-                f"Thank you for registering. Please use the code below to activate your account:\n\n"
-                f"Activation Code: {active_code.code}\n\n"
-                f"If you didn’t request this, you can ignore this email.\n\n"
-                f"Thanks,\n"
-                f"Support Team"
+            message = (
+                f"Bonjour Monsieur/Madame,\n\n"
+                f"Merci de vous être inscrit. Veuillez utiliser le code ci-dessous pour activer votre compte :\n\n"
+                f"Code d'activation : <h2>{active_code.code}</h2>\n\n"
+                f"Si vous n'avez pas fait cette demande, vous pouvez ignorer cet e-mail.\n\n"
+                f"Merci,\n"
+                f"Équipe de support"
             )
         )
         return user
@@ -138,14 +138,14 @@ class ForgotPasswordSerializer(serializers.Serializer):
         # Send reset code via email
         Celery_send_mail.delay(
             email=user.email,
-            message=(
-                f"Hello Sir/Madam,\n\n"
-                f"We received a request to reset your password. "
-                f"Use the code below to reset your password:\n\n"
-                f"Password Reset Code: {reset_code.code}\n\n"
-                f"If you didn’t request this, you can ignore this email.\n\n"
-                f"Thanks,\n"
-                f"Support Team"
+            message = (
+                f"Bonjour Monsieur/Madame,\n\n"
+                f"Nous avons reçu une demande de réinitialisation de votre mot de passe. "
+                f"Veuillez utiliser le code ci-dessous pour réinitialiser votre mot de passe :\n\n"
+                f"Code de réinitialisation du mot de passe : <h2>{reset_code.code}</h2>\n\n"
+                f"Si vous n'avez pas fait cette demande, vous pouvez ignorer cet e-mail.\n\n"
+                f"Merci,\n"
+                f"Équipe de support"
             ),
             subject="Reset Your Password – Action Required"
         )
