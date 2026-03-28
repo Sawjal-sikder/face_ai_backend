@@ -3,6 +3,7 @@ from django.urls import path #type:ignore
 from payment.paypal_event_views import AnalysisCreditTransactionViews, PaypalEventViews, PlanDetailView, PlanViews # type: ignore
 from .views import *
 # from .onetimepayment import PurchaseOneTimeCreditsView
+from .views import *
 
 urlpatterns = [
       # path("create-subscription/", CreateSubscriptionView.as_view(), name="create-subscription"),
@@ -30,7 +31,9 @@ urlpatterns = [
       # AnalysisCreditTransaction
       path("analysis-credit-transactions/", AnalysisCreditTransactionViews.as_view(), name="analysis-credit-transactions"),
       
-      
+      # stripe
+      path("stripe/plans/", PlanViews.as_view(), name="stripe-plan-list-create"),
+      path("stripe/plans/<int:id>/", PlanDetailView.as_view(), name="stripe-plan-update"),
       
       
 ]

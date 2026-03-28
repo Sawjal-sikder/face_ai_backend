@@ -1,3 +1,66 @@
+from rest_framework import generics, permissions, status #type: ignore
+from rest_framework.response import Response #type: ignore
+from .StripePlanSerializers import StripePlanSerializer #type: ignore
+from .models import StripePlan #type: ignore
+
+class PlanViews(generics.ListCreateAPIView):
+    queryset = StripePlan.objects.filter(active=True)
+    serializer_class = StripePlanSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    pagination_class = None  
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response({
+                        "message": "Plan created successfully",
+                        "plan": serializer.data
+                        }, status=status.HTTP_201_CREATED)
+        
+# plan update and details view
+class PlanDetailView(generics.RetrieveUpdateAPIView):
+    queryset = StripePlan.objects.all()
+    serializer_class = StripePlanSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    lookup_field = "id"
+    
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response({
+                        "message": "Plan updated successfully",
+                        "plan": serializer.data
+                        }, status=status.HTTP_200_OK)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # import os
 # import stripe
 # import logging
