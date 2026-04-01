@@ -15,8 +15,17 @@ class CreateSubscriptionView(APIView):
         plan_id = request.data.get("plan_id")
         success_path = request.data.get("success_path")
         cancel_path = request.data.get("cancel_path")
-        success_url = os.getenv("BASE_URL_FRONTEND") + success_path
-        cancel_url = os.getenv("BASE_URL_FRONTEND") + cancel_path
+
+        if not success_path or not cancel_path:
+            return Response(
+                {"error": "Missing success_path or cancel_path"},
+                status=400
+            )
+
+        base_url = os.getenv("BASE_URL_FRONTEND", "http://localhost:3000")
+
+        success_url = base_url + success_path
+        cancel_url = base_url + cancel_path
 
         if not plan_id:
             return Response({"message": "plan_id is required"}, status=400)
@@ -62,6 +71,8 @@ class CreateSubscriptionView(APIView):
                 "amount": stripe_plan.amount,
                 "plan_name": stripe_plan.name,
                 "credits": stripe_plan.credits,
+                "success_url": success_url,
+                "cancel_url": cancel_url,
             })
         except Exception as e:
             print(f"Error creating Stripe checkout session: {e}")
